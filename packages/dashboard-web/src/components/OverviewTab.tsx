@@ -10,6 +10,7 @@ import {
 	CheckCircle,
 	Clock,
 	DollarSign,
+	Filter,
 	Globe,
 	Zap,
 } from "lucide-react";
@@ -22,6 +23,9 @@ import {
 	useStats,
 	useUpsertClientIpAlias,
 } from "../hooks/queries";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { ChartsSection } from "./overview/ChartsSection";
 import { DataRetentionCard } from "./overview/DataRetentionCard";
 import { LoadingSkeleton } from "./overview/LoadingSkeleton";
@@ -53,6 +57,10 @@ export const OverviewTab = React.memo(() => {
 		setEditingIp(null);
 	};
 
+	// Client IP filter state
+	const [selectedClientIps, setSelectedClientIps] = useState<string[]>([]);
+	const [ipFilterOpen, setIpFilterOpen] = useState(false);
+
 	// Fetch all data using React Query hooks
 	const { data: stats, isLoading: statsLoading } = useStats(
 		REFRESH_INTERVALS.default,
@@ -60,10 +68,22 @@ export const OverviewTab = React.memo(() => {
 	const [timeRange, setTimeRange] = useState("24h");
 	const { data: analytics, isLoading: analyticsLoading } = useAnalytics(
 		timeRange,
-		{ accounts: [], models: [], status: "all" },
+		{ accounts: [], models: [], status: "all", clientIps: selectedClientIps },
 		"normal",
 	);
 	const { data: accounts, isLoading: accountsLoading } = useAccounts();
+
+	// Available client IPs from stats (topClientIps)
+	const availableClientIps = useMemo(
+		() => stats?.topClientIps ?? [],
+		[stats?.topClientIps],
+	);
+
+	const toggleClientIp = (ip: string) => {
+		setSelectedClientIps((prev) =>
+			prev.includes(ip) ? prev.filter((i) => i !== ip) : [...prev, ip],
+		);
+	};
 
 	// Memoize percentage change calculation (must be at top level)
 	const pctChange = useCallback(
@@ -190,10 +210,69 @@ export const OverviewTab = React.memo(() => {
 
 	return (
 		<div className="space-y-6">
-			{/* Header with Time Range Selector */}
+			{/* Header with Time Range Selector and Client IP Filter */}
 			<div className="flex justify-between items-center">
 				<h2 className="text-2xl font-semibold">Overview</h2>
-				<TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+				<div className="flex items-center gap-2">
+					{availableClientIps.length > 0 && (
+						<Popover open={ipFilterOpen} onOpenChange={setIpFilterOpen}>
+							<PopoverTrigger asChild>
+								<Button variant="outline" size="sm">
+									<Filter className="h-4 w-4 mr-2" />
+									Client IP
+									{selectedClientIps.length > 0 && (
+										<Badge variant="secondary" className="ml-2 h-5 px-1">
+											{selectedClientIps.length}
+										</Badge>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-64" align="end">
+								<div className="space-y-3">
+									<div className="flex items-center justify-between">
+										<h4 className="text-sm font-medium">Filter by Client IP</h4>
+										{selectedClientIps.length > 0 && (
+											<button
+												type="button"
+												onClick={() => setSelectedClientIps([])}
+												className="text-xs text-muted-foreground hover:text-foreground"
+											>
+												Clear
+											</button>
+										)}
+									</div>
+									<div className="max-h-48 overflow-y-auto space-y-1">
+										{availableClientIps.map((entry) => (
+											<label
+												key={entry.ip}
+												className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-1 rounded"
+											>
+												<input
+													type="checkbox"
+													className="rounded border-gray-300"
+													checked={selectedClientIps.includes(entry.ip)}
+													onChange={() => toggleClientIp(entry.ip)}
+												/>
+												<span
+													className="text-sm font-mono truncate"
+													title={entry.alias ? entry.ip : undefined}
+												>
+													{entry.alias ?? entry.ip}
+												</span>
+											</label>
+										))}
+									</div>
+									<div className="flex justify-end pt-1 border-t">
+										<Button size="sm" onClick={() => setIpFilterOpen(false)}>
+											Done
+										</Button>
+									</div>
+								</div>
+							</PopoverContent>
+						</Popover>
+					)}
+					<TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+				</div>
 			</div>
 
 			{/* Metrics Grid */}
