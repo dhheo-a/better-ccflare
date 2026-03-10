@@ -331,9 +331,9 @@ export const patterns = {
 	uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 	alphanumeric: /^[a-zA-Z0-9]+$/,
 	alphanumericWithSpaces: /^[a-zA-Z0-9\s]+$/,
-	// Account name: alphanumeric with spaces, hyphens, and underscores
+	// Account name: alphanumeric with spaces, hyphens, underscores, dots, and @ (to support email addresses)
 	// Spaces are allowed for better UX - CLI command suggestions will quote names properly
-	accountName: /^[a-zA-Z0-9\s\-_]+$/,
+	accountName: /^[a-zA-Z0-9\s\-_.@]+$/,
 	// Path pattern for API endpoints
 	apiPath: /^\/v1\/[a-zA-Z0-9\-_/]*$/,
 	// URL pattern
