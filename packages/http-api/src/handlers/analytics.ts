@@ -574,7 +574,7 @@ export function createAnalyticsHandler(context: APIContext) {
 					AND r.client_ip IS NOT NULL
 				GROUP BY r.client_ip
 				ORDER BY requests DESC
-				LIMIT 20
+				LIMIT 30
 			`);
 			const clientIpPerfRows = clientIpPerfQuery.all(...queryParams) as Array<{
 				ip: string;
