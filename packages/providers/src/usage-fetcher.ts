@@ -27,6 +27,11 @@ export interface ExtraUsage {
 	utilization: number | null;
 }
 
+export interface UsageFetchResult {
+	data: UsageData | null;
+	retryAfterMs?: number; // Set when rate-limited (429)
+}
+
 export interface UsageData {
 	// Core windows (always present in older API versions)
 	five_hour: UsageWindow;
@@ -241,6 +246,7 @@ class UsageCache {
 		baseIntervalMs: number,
 		provider?: string,
 		customEndpoint?: string | null,
+		overrideDelayMs?: number,
 	) {
 		const failures = this.failureCounts.get(accountId) ?? 0;
 		// Exponential backoff capped at 30 minutes
@@ -268,7 +274,7 @@ class UsageCache {
 			// Bail if polling was stopped
 			if (!this.tokenProviders.has(accountId)) return;
 
-			const success = await this.fetchAndCache(
+			const { success, retryAfterMs } = await this.fetchAndCache(
 				accountId,
 				tokenProvider,
 				provider,
@@ -276,7 +282,8 @@ class UsageCache {
 			);
 			if (success) {
 				this.failureCounts.delete(accountId); // reset streak on success
-			} else {
+			} else if (retryAfterMs === undefined) {
+				// Only increment failure count for non-rate-limit errors
 				const count = (this.failureCounts.get(accountId) ?? 0) + 1;
 				this.failureCounts.set(accountId, count);
 			}
@@ -288,6 +295,7 @@ class UsageCache {
 					baseIntervalMs,
 					provider,
 					customEndpoint,
+					retryAfterMs,
 				);
 			}
 		}, delay);
@@ -345,8 +353,8 @@ class UsageCache {
 
 		// Immediate fetch
 		this.fetchAndCache(accountId, tokenProvider, provider, customEndpoint).then(
-			(success) => {
-				if (!success) {
+			({ success, retryAfterMs }) => {
+				if (!success && retryAfterMs === undefined) {
 					this.failureCounts.set(accountId, 1);
 				}
 				if (this.tokenProviders.has(accountId)) {
@@ -356,6 +364,7 @@ class UsageCache {
 						baseIntervalMs,
 						provider,
 						customEndpoint,
+						retryAfterMs,
 					);
 				}
 			},
@@ -378,12 +387,13 @@ class UsageCache {
 
 		const provider = this.providerTypes.get(accountId);
 		const customEndpoint = this.customEndpoints.get(accountId);
-		return await this.fetchAndCache(
+		const { success } = await this.fetchAndCache(
 			accountId,
 			tokenProvider,
 			provider,
 			customEndpoint,
 		);
+		return success;
 	}
 
 	/**
@@ -409,14 +419,14 @@ class UsageCache {
 
 	/**
 	 * Fetch and cache usage data.
-	 * Returns true if data was successfully fetched and cached, false otherwise.
+	 * Returns { success, retryAfterMs? } where retryAfterMs is set when rate-limited.
 	 */
 	private async fetchAndCache(
 		accountId: string,
 		tokenProvider: AccessTokenProvider,
 		provider?: string,
 		customEndpoint?: string | null,
-	): Promise<boolean> {
+	): Promise<{ success: boolean; retryAfterMs?: number }> {
 		try {
 			// Get a fresh access token or API key on each fetch
 			let token: string;
@@ -434,7 +444,7 @@ class UsageCache {
 				log.warn(
 					`Token provider failed for account ${accountId}: ${tokenErrorMessage || "Unknown error"}`,
 				);
-				return false;
+				return { success: false };
 			}
 
 			// Validate token before proceeding
@@ -442,7 +452,7 @@ class UsageCache {
 				log.warn(
 					`No valid token available for account ${accountId}, skipping usage fetch`,
 				);
-				return false;
+				return { success: false };
 			}
 
 			// Fetch data based on provider type
@@ -468,7 +478,7 @@ class UsageCache {
 					log.debug(
 						`Successfully fetched NanoGPT usage data for account ${accountId}: ${utilization}% (${window} window)`,
 					);
-					return true;
+					return { success: true };
 				}
 			} else if (provider === "zai") {
 				// Fetch Zai usage data
@@ -488,7 +498,7 @@ class UsageCache {
 					log.debug(
 						`Successfully fetched Zai usage data for account ${accountId}: ${utilization}% (${window} window)`,
 					);
-					return true;
+					return { success: true };
 				}
 			} else if (provider === "kilo") {
 				// Fetch Kilo usage data
@@ -502,7 +512,7 @@ class UsageCache {
 					log.debug(
 						`Successfully fetched Kilo usage data for account ${accountId}: $${(data as KiloUsageData).remainingUsd.toFixed(2)} remaining (${utilization?.toFixed(1)}% used, ${window})`,
 					);
-					return true;
+					return { success: true };
 				}
 			} else {
 				// Default to Anthropic usage data
@@ -518,11 +528,11 @@ class UsageCache {
 					log.debug(
 						`Successfully fetched usage data for account ${accountId}: ${utilization}% (${window} window)`,
 					);
-					return true;
+					return { success: true };
 				}
 			}
 
-			return false;
+			return { success: false };
 		} catch (error) {
 			// Ensure we have a proper error object for logging
 			const errorMessage =
@@ -536,7 +546,7 @@ class UsageCache {
 				`Error fetching usage data for account ${accountId}:`,
 				errorMessage || "Unknown error",
 			);
-			return false;
+			return { success: false };
 		}
 	}
 
