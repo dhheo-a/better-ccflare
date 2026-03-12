@@ -8,11 +8,12 @@ export const queryKeys = {
 		filters?: unknown,
 		viewMode?: string,
 		modelBreakdown?: boolean,
+		customDateRange?: { startMs: number; endMs: number },
 	) =>
 		[
 			...queryKeys.all,
 			"analytics",
-			{ timeRange, filters, viewMode, modelBreakdown },
+			{ timeRange, filters, viewMode, modelBreakdown, customDateRange },
 		] as const,
 	requests: (limit?: number) =>
 		[...queryKeys.all, "requests", { limit }] as const,

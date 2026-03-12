@@ -47,6 +47,7 @@ export const useAnalytics = (
 	},
 	viewMode: "normal" | "cumulative",
 	modelBreakdown?: boolean,
+	customDateRange?: { startMs: number; endMs: number },
 ) => {
 	const logger = {
 		debug: (message: string, ...args: unknown[]) => {
@@ -58,13 +59,20 @@ export const useAnalytics = (
 	};
 
 	return useQuery({
-		queryKey: queryKeys.analytics(timeRange, filters, viewMode, modelBreakdown),
+		queryKey: queryKeys.analytics(
+			timeRange,
+			filters,
+			viewMode,
+			modelBreakdown,
+			customDateRange,
+		),
 		queryFn: async () => {
 			logger.debug(`Starting analytics query`, {
 				timeRange,
 				filters,
 				viewMode,
 				modelBreakdown,
+				customDateRange,
 				timestamp: new Date().toISOString(),
 			});
 
@@ -74,6 +82,7 @@ export const useAnalytics = (
 					filters,
 					viewMode,
 					modelBreakdown,
+					customDateRange,
 				);
 				logger.debug(`Analytics query completed successfully`, {
 					timeRange,

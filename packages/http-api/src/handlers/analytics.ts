@@ -56,13 +56,49 @@ function getRangeConfig(range: string): {
 	}
 }
 
+function getBucketForDuration(durationMs: number): BucketConfig {
+	const hour = 60 * 60 * 1000;
+	const day = 24 * hour;
+
+	if (durationMs <= 2 * hour) {
+		return { bucketMs: 60 * 1000, displayName: "1m" };
+	}
+	if (durationMs <= 12 * hour) {
+		return { bucketMs: 5 * 60 * 1000, displayName: "5m" };
+	}
+	if (durationMs <= 3 * day) {
+		return { bucketMs: hour, displayName: "1h" };
+	}
+	if (durationMs <= 14 * day) {
+		return { bucketMs: 6 * hour, displayName: "6h" };
+	}
+	return { bucketMs: day, displayName: "1d" };
+}
+
 export function createAnalyticsHandler(context: APIContext) {
 	return async (params: URLSearchParams): Promise<Response> => {
 		const { db } = context;
 		const range = params.get("range") ?? "24h";
-		const { startMs, bucket } = getRangeConfig(range);
 		const mode = params.get("mode") ?? "normal";
 		const isCumulative = mode === "cumulative";
+
+		// Support custom date range via startMs/endMs params
+		let startMs: number;
+		let endMs: number | null = null;
+		let bucket: BucketConfig;
+
+		const customStartMs = params.get("startMs");
+		const customEndMs = params.get("endMs");
+
+		if (range === "custom" && customStartMs) {
+			startMs = parseInt(customStartMs, 10);
+			endMs = customEndMs ? parseInt(customEndMs, 10) : Date.now();
+			bucket = getBucketForDuration(endMs - startMs);
+		} else {
+			const config = getRangeConfig(range);
+			startMs = config.startMs;
+			bucket = config.bucket;
+		}
 
 		// Extract filters
 		const accountsFilter =
@@ -77,6 +113,11 @@ export function createAnalyticsHandler(context: APIContext) {
 		// Build filter conditions
 		const conditions: string[] = ["timestamp > ?"];
 		const queryParams: (string | number)[] = [startMs];
+
+		if (endMs !== null) {
+			conditions.push("timestamp <= ?");
+			queryParams.push(endMs);
+		}
 
 		if (accountsFilter.length > 0) {
 			// Handle account filter - map account names to IDs via join

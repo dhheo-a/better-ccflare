@@ -65,11 +65,30 @@ export const OverviewTab = React.memo(() => {
 	const { data: stats, isLoading: statsLoading } = useStats(
 		REFRESH_INTERVALS.default,
 	);
-	const [timeRange, setTimeRange] = useState("24h");
+	const [timeRange, setTimeRange] = useState("custom");
+	const [customStartDate, setCustomStartDate] = useState(
+		new Date().toISOString().slice(0, 10),
+	);
+	const [customEndDate, setCustomEndDate] = useState(
+		new Date().toISOString().slice(0, 10),
+	);
+
+	const customDateRange = useMemo(() => {
+		if (timeRange !== "custom") return undefined;
+		const start = customStartDate ? new Date(`${customStartDate}T00:00:00`).getTime() : null;
+		const end = customEndDate
+			? new Date(`${customEndDate}T23:59:59`).getTime()
+			: Date.now();
+		if (!start || Number.isNaN(start)) return undefined;
+		return { startMs: start, endMs: end };
+	}, [timeRange, customStartDate, customEndDate]);
+
 	const { data: analytics, isLoading: analyticsLoading } = useAnalytics(
 		timeRange,
 		{ accounts: [], models: [], status: "all", clientIps: selectedClientIps },
 		"normal",
+		undefined,
+		customDateRange,
 	);
 	const { data: accounts, isLoading: accountsLoading } = useAccounts();
 
@@ -119,15 +138,23 @@ export const OverviewTab = React.memo(() => {
 	// Transform time series data
 	const timeSeriesData = useMemo(() => {
 		if (!analytics) return [];
+		let isLongRange = timeRange === "30d" || timeRange === "7d";
+		if (timeRange === "custom" && customDateRange) {
+			const durationMs = customDateRange.endMs - customDateRange.startMs;
+			isLongRange = durationMs > 3 * 24 * 60 * 60 * 1000;
+		}
+		const formatter = isLongRange
+			? (d: Date) => format(d, "MMM d")
+			: (d: Date) => format(d, "HH:mm");
 		return analytics.timeSeries.map((point) => ({
-			time: format(new Date(point.ts), "HH:mm"),
+			time: formatter(new Date(point.ts)),
 			requests: point.requests,
 			successRate: point.successRate,
 			responseTime: Math.round(point.avgResponseTime),
 			cost: point.costUsd.toFixed(2),
 			tokensPerSecond: point.avgTokensPerSecond || 0,
 		}));
-	}, [analytics]);
+	}, [analytics, timeRange, customDateRange]);
 
 	// Memoize percentage changes calculation
 	const trends = useMemo(() => {
@@ -271,7 +298,14 @@ export const OverviewTab = React.memo(() => {
 							</PopoverContent>
 						</Popover>
 					)}
-					<TimeRangeSelector value={timeRange} onChange={setTimeRange} />
+					<TimeRangeSelector
+						value={timeRange}
+						onChange={setTimeRange}
+						customStartDate={customStartDate}
+						customEndDate={customEndDate}
+						setCustomStartDate={setCustomStartDate}
+						setCustomEndDate={setCustomEndDate}
+					/>
 				</div>
 			</div>
 
@@ -345,7 +379,9 @@ export const OverviewTab = React.memo(() => {
 							<Globe className="h-4 w-4 text-muted-foreground" />
 							<h3 className="text-sm font-medium">Client IP 사용량</h3>
 							<span className="text-xs text-muted-foreground ml-auto">
-								{timeRange} 기준 · 최대 30개 표시
+								{timeRange === "custom" && customStartDate
+									? `${customStartDate} ~ ${customEndDate} 기준`
+									: `${timeRange} 기준`}
 							</span>
 						</div>
 						<div className="overflow-x-auto">
@@ -362,23 +398,12 @@ export const OverviewTab = React.memo(() => {
 											요청 수
 										</th>
 										<th className="text-right px-4 py-2 font-medium text-muted-foreground">
-											비율
-										</th>
-										<th className="text-right px-4 py-2 font-medium text-muted-foreground">
-											토큰
-										</th>
-										<th className="text-right px-4 py-2 font-medium text-muted-foreground">
-											비용
-										</th>
-										<th className="text-right px-4 py-2 font-medium text-muted-foreground">
 											성공률
 										</th>
 									</tr>
 								</thead>
 								<tbody>
-									{(() => {
-										const totalRequests = analytics.clientIpPerformance.reduce((sum, e) => sum + e.requests, 0);
-										return analytics.clientIpPerformance.map((entry, idx) => (
+									{analytics.clientIpPerformance.map((entry, idx) => (
 										<tr
 											key={entry.ip}
 											className="border-b last:border-0 hover:bg-muted/20"
@@ -447,15 +472,6 @@ export const OverviewTab = React.memo(() => {
 											<td className="px-4 py-2 text-right font-mono">
 												{formatNumber(entry.requests)}
 											</td>
-											<td className="px-4 py-2 text-right font-mono text-muted-foreground">
-												{totalRequests > 0 ? ((entry.requests / totalRequests) * 100).toFixed(1) : "0.0"}%
-											</td>
-											<td className="px-4 py-2 text-right font-mono text-muted-foreground">
-												{formatNumber(entry.totalTokens)}
-											</td>
-											<td className="px-4 py-2 text-right font-mono text-muted-foreground">
-												{formatCost(entry.totalCost)}
-											</td>
 											<td className="px-4 py-2 text-right font-mono">
 												<span
 													className={
@@ -470,8 +486,7 @@ export const OverviewTab = React.memo(() => {
 												</span>
 											</td>
 										</tr>
-									));
-									})()}
+									))}
 								</tbody>
 							</table>
 						</div>
@@ -488,6 +503,91 @@ export const OverviewTab = React.memo(() => {
 			<SystemStatus recentErrors={stats?.recentErrors} />
 
 			{accounts && <RateLimitInfo accounts={accounts} />}
+
+			{/* Top Client IPs */}
+			{stats?.topClientIps && stats.topClientIps.length > 0 && (
+				<div className="rounded-lg border bg-card p-4">
+					<div className="flex items-center gap-2 mb-3">
+						<Globe className="h-4 w-4 text-muted-foreground" />
+						<h3 className="text-sm font-medium">Top Client IPs</h3>
+					</div>
+					<div className="space-y-2">
+						{stats.topClientIps.slice(0, 8).map((entry) => (
+							<div
+								key={entry.ip}
+								className="flex items-center justify-between text-sm"
+							>
+								<div className="flex items-center gap-2 min-w-0">
+									{editingIp === entry.ip ? (
+										<div className="flex items-center gap-1">
+											<input
+												type="text"
+												value={editAlias}
+												onChange={(e) => setEditAlias(e.target.value)}
+												onKeyDown={(e) => {
+													if (e.key === "Enter") handleAliasSave(entry.ip);
+													if (e.key === "Escape") setEditingIp(null);
+												}}
+												placeholder="Enter alias..."
+												className="h-6 text-xs border rounded px-1 w-28 bg-background"
+												// biome-ignore lint/a11y/noAutofocus: intentional focus for inline edit
+												autoFocus
+											/>
+											<button
+												type="button"
+												onClick={() => handleAliasSave(entry.ip)}
+												className="text-xs text-primary hover:underline"
+											>
+												Save
+											</button>
+											<button
+												type="button"
+												onClick={() => setEditingIp(null)}
+												className="text-xs text-muted-foreground hover:underline"
+											>
+												Cancel
+											</button>
+										</div>
+									) : (
+										<>
+											<span
+												title={entry.alias ? entry.ip : undefined}
+												className="font-mono text-xs text-muted-foreground truncate max-w-[140px]"
+											>
+												{entry.alias ?? entry.ip}
+											</span>
+											<button
+												type="button"
+												onClick={() => handleAliasEdit(entry.ip, entry.alias)}
+												className="text-xs text-muted-foreground hover:text-foreground shrink-0"
+												title="Edit alias"
+											>
+												✏️
+											</button>
+										</>
+									)}
+								</div>
+								<div className="flex items-center gap-3 shrink-0">
+									<span className="text-muted-foreground">
+										{formatNumber(entry.requests)} reqs
+									</span>
+									<span
+										className={
+											entry.successRate >= 90
+												? "text-green-500"
+												: entry.successRate >= 70
+													? "text-yellow-500"
+													: "text-red-500"
+										}
+									>
+										{entry.successRate}%
+									</span>
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 
 			{/* Configuration Row */}
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -14,8 +14,22 @@ import {
 	TokenUsageBreakdown,
 } from "./analytics";
 
+// Returns today's date as YYYY-MM-DD string
+function todayStr() {
+	return new Date().toISOString().slice(0, 10);
+}
+
+// Returns date N days ago as YYYY-MM-DD string
+function daysAgoStr(days: number) {
+	const d = new Date();
+	d.setDate(d.getDate() - days);
+	return d.toISOString().slice(0, 10);
+}
+
 export const AnalyticsTab = React.memo(() => {
-	const [timeRange, setTimeRange] = useState<TimeRange>("1h");
+	const [timeRange, setTimeRange] = useState<TimeRange>("custom");
+	const [customStartDate, setCustomStartDate] = useState(daysAgoStr(7));
+	const [customEndDate, setCustomEndDate] = useState(todayStr());
 	const [selectedMetric, setSelectedMetric] = useState("requests");
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [viewMode, setViewMode] = useState<"normal" | "cumulative">("normal");
@@ -28,12 +42,25 @@ export const AnalyticsTab = React.memo(() => {
 		status: "all",
 	});
 
+	// Build custom date range as milliseconds when timeRange === "custom"
+	const customDateRange = useMemo(() => {
+		if (timeRange !== "custom") return undefined;
+		const start = customStartDate ? new Date(`${customStartDate}T00:00:00`).getTime() : null;
+		// End date: end of day
+		const end = customEndDate
+			? new Date(`${customEndDate}T23:59:59`).getTime()
+			: Date.now();
+		if (!start || Number.isNaN(start)) return undefined;
+		return { startMs: start, endMs: end };
+	}, [timeRange, customStartDate, customEndDate]);
+
 	// Fetch analytics data with automatic refetch on dependency changes
 	const { data: analytics, isLoading: loading } = useAnalytics(
 		timeRange,
 		filters,
 		viewMode,
 		modelBreakdown,
+		customDateRange,
 	);
 
 	// Get unique accounts and models from analytics data
@@ -155,10 +182,16 @@ export const AnalyticsTab = React.memo(() => {
 		if (!analytics?.timeSeries) return [];
 
 		const timeSeries = filterData(analytics.timeSeries);
-		const formatter =
-			timeRange === "30d"
-				? (date: Date) => format(date, "MMM d")
-				: (date: Date) => format(date, "HH:mm");
+
+		// For custom range, determine format based on actual duration
+		let isLongRange = timeRange === "30d" || timeRange === "7d";
+		if (timeRange === "custom" && customDateRange) {
+			const durationMs = customDateRange.endMs - customDateRange.startMs;
+			isLongRange = durationMs > 3 * 24 * 60 * 60 * 1000;
+		}
+		const formatter = isLongRange
+			? (date: Date) => format(date, "MMM d")
+			: (date: Date) => format(date, "HH:mm");
 
 		return timeSeries.map((point) => ({
 			time: formatter(new Date(point.ts)),
@@ -170,7 +203,7 @@ export const AnalyticsTab = React.memo(() => {
 			cacheHitRate: parseFloat(point.cacheHitRate.toFixed(1)),
 			avgTokensPerSecond: point.avgTokensPerSecond || 0,
 		}));
-	}, [analytics?.timeSeries, timeRange, filterData]);
+	}, [analytics?.timeSeries, timeRange, filterData, customDateRange]);
 
 	// Memoize token usage breakdown calculation
 	const tokenBreakdown = useMemo(() => {
@@ -243,6 +276,10 @@ export const AnalyticsTab = React.memo(() => {
 			<AnalyticsControls
 				timeRange={timeRange}
 				setTimeRange={setTimeRange}
+				customStartDate={customStartDate}
+				customEndDate={customEndDate}
+				setCustomStartDate={setCustomStartDate}
+				setCustomEndDate={setCustomEndDate}
 				viewMode={viewMode}
 				setViewMode={(mode) => {
 					setViewMode(mode);

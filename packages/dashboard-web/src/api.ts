@@ -725,8 +725,14 @@ class API extends HttpClient {
 		},
 		mode: "normal" | "cumulative" = "normal",
 		modelBreakdown?: boolean,
+		customDateRange?: { startMs: number; endMs: number },
 	): Promise<AnalyticsResponse> {
 		const params = new URLSearchParams({ range });
+
+		if (range === "custom" && customDateRange) {
+			params.append("startMs", String(customDateRange.startMs));
+			params.append("endMs", String(customDateRange.endMs));
+		}
 
 		if (filters?.accounts?.length) {
 			params.append("accounts", filters.accounts.join(","));
