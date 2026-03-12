@@ -726,6 +726,7 @@ class API extends HttpClient {
 		mode: "normal" | "cumulative" = "normal",
 		modelBreakdown?: boolean,
 		customDateRange?: { startMs: number; endMs: number },
+		accountBreakdown?: boolean,
 	): Promise<AnalyticsResponse> {
 		const params = new URLSearchParams({ range });
 
@@ -754,6 +755,9 @@ class API extends HttpClient {
 		}
 		if (modelBreakdown) {
 			params.append("modelBreakdown", "true");
+		}
+		if (accountBreakdown) {
+			params.append("accountBreakdown", "true");
 		}
 
 		const queryString = params.toString();

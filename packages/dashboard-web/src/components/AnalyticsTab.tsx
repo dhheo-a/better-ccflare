@@ -41,6 +41,7 @@ export const AnalyticsTab = React.memo(() => {
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [viewMode, setViewMode] = useState<"normal" | "cumulative">("normal");
 	const [modelBreakdown, setModelBreakdown] = useState(false);
+	const [accountBreakdown, setAccountBreakdown] = useState(false);
 	const [filters, setFilters] = useState<FilterState>({
 		accounts: [],
 		models: [],
@@ -70,6 +71,7 @@ export const AnalyticsTab = React.memo(() => {
 		viewMode,
 		modelBreakdown,
 		customDateRange,
+		accountBreakdown,
 	);
 
 	// Get unique accounts and models from analytics data
@@ -292,9 +294,10 @@ export const AnalyticsTab = React.memo(() => {
 				viewMode={viewMode}
 				setViewMode={(mode) => {
 					setViewMode(mode);
-					// Disable per-model breakdown when switching to cumulative
+					// Disable per-model/account breakdown when switching to cumulative
 					if (mode === "cumulative") {
 						setModelBreakdown(false);
+						setAccountBreakdown(false);
 					}
 				}}
 				filters={filters}
@@ -334,7 +337,15 @@ export const AnalyticsTab = React.memo(() => {
 				selectedMetric={selectedMetric}
 				setSelectedMetric={setSelectedMetric}
 				modelBreakdown={modelBreakdown}
-				onModelBreakdownChange={setModelBreakdown}
+				onModelBreakdownChange={(enabled) => {
+					setModelBreakdown(enabled);
+					if (enabled) setAccountBreakdown(false);
+				}}
+				accountBreakdown={accountBreakdown}
+				onAccountBreakdownChange={(enabled) => {
+					setAccountBreakdown(enabled);
+					if (enabled) setModelBreakdown(false);
+				}}
 			/>
 
 			{/* Normal View Charts - Only show in normal mode */}

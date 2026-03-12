@@ -161,8 +161,9 @@ export function createAnalyticsHandler(context: APIContext) {
 		const whereClause = conditions.join(" AND ");
 
 		try {
-			// Check if we need per-model time series
+			// Check if we need per-model or per-account time series
 			const includeModelBreakdown = params.get("modelBreakdown") === "true";
+			const includeAccountBreakdown = params.get("accountBreakdown") === "true";
 
 			// Consolidated query to get all analytics data in a single roundtrip
 			// Using CTEs to compute multiple metrics efficiently
@@ -301,21 +302,23 @@ export function createAnalyticsHandler(context: APIContext) {
 			// Get remaining data that couldn't be consolidated
 			const timeSeriesQuery = db.prepare(`
 				SELECT
-					(timestamp / ?) * ? as ts,
-					${includeModelBreakdown ? "model," : ""}
+					(r.timestamp / ?) * ? as ts,
+					${includeModelBreakdown ? "r.model," : ""}
+					${includeAccountBreakdown ? `COALESCE(a.name, '${NO_ACCOUNT_ID}') as account,` : ""}
 					COUNT(*) as requests,
-					SUM(COALESCE(total_tokens, 0)) as tokens,
-					SUM(COALESCE(cost_usd, 0)) as cost_usd,
-					SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) as success_rate,
-					SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) as error_rate,
-					SUM(COALESCE(cache_read_input_tokens, 0)) * 100.0 /
-						NULLIF(SUM(COALESCE(input_tokens, 0) + COALESCE(cache_read_input_tokens, 0) + COALESCE(cache_creation_input_tokens, 0)), 0) as cache_hit_rate,
-					AVG(response_time_ms) as avg_response_time,
-					AVG(output_tokens_per_second) as avg_tokens_per_second
+					SUM(COALESCE(r.total_tokens, 0)) as tokens,
+					SUM(COALESCE(r.cost_usd, 0)) as cost_usd,
+					SUM(CASE WHEN r.success = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) as success_rate,
+					SUM(CASE WHEN r.success = 0 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) as error_rate,
+					SUM(COALESCE(r.cache_read_input_tokens, 0)) * 100.0 /
+						NULLIF(SUM(COALESCE(r.input_tokens, 0) + COALESCE(r.cache_read_input_tokens, 0) + COALESCE(r.cache_creation_input_tokens, 0)), 0) as cache_hit_rate,
+					AVG(r.response_time_ms) as avg_response_time,
+					AVG(r.output_tokens_per_second) as avg_tokens_per_second
 				FROM requests r
-				WHERE ${whereClause} ${includeModelBreakdown ? "AND model IS NOT NULL" : ""}
-				GROUP BY ts${includeModelBreakdown ? ", model" : ""}
-				ORDER BY ts${includeModelBreakdown ? ", model" : ""}
+				${includeAccountBreakdown ? "LEFT JOIN accounts a ON a.id = r.account_used" : ""}
+				WHERE ${whereClause} ${includeModelBreakdown ? "AND r.model IS NOT NULL" : ""}
+				GROUP BY ts${includeModelBreakdown ? ", r.model" : ""}${includeAccountBreakdown ? ", account" : ""}
+				ORDER BY ts${includeModelBreakdown ? ", r.model" : ""}${includeAccountBreakdown ? ", account" : ""}
 			`);
 			const timeSeries = timeSeriesQuery.all(
 				bucket.bucketMs,
@@ -324,6 +327,7 @@ export function createAnalyticsHandler(context: APIContext) {
 			) as Array<{
 				ts: number;
 				model?: string;
+				account?: string;
 				requests: number;
 				tokens: number;
 				cost_usd: number;
@@ -540,6 +544,7 @@ export function createAnalyticsHandler(context: APIContext) {
 			let transformedTimeSeries = timeSeries.map((point) => ({
 				ts: point.ts,
 				...(point.model && { model: point.model }),
+				...(point.account && { account: point.account }),
 				requests: point.requests || 0,
 				tokens: point.tokens || 0,
 				costUsd: point.cost_usd || 0,
@@ -551,7 +556,7 @@ export function createAnalyticsHandler(context: APIContext) {
 			}));
 
 			// Apply cumulative transformation if requested
-			if (isCumulative && !includeModelBreakdown) {
+			if (isCumulative && !includeModelBreakdown && !includeAccountBreakdown) {
 				let runningRequests = 0;
 				let runningTokens = 0;
 				let runningCostUsd = 0;
@@ -594,6 +599,35 @@ export function createAnalyticsHandler(context: APIContext) {
 							requests: runningTotals[point.model].requests,
 							tokens: runningTotals[point.model].tokens,
 							costUsd: runningTotals[point.model].costUsd,
+						};
+					}
+					return point;
+				});
+			} else if (isCumulative && includeAccountBreakdown) {
+				// For per-account cumulative, track running totals per account
+				const runningTotals: Record<
+					string,
+					{ requests: number; tokens: number; costUsd: number }
+				> = {};
+
+				transformedTimeSeries = transformedTimeSeries.map((point) => {
+					if (point.account) {
+						if (!runningTotals[point.account]) {
+							runningTotals[point.account] = {
+								requests: 0,
+								tokens: 0,
+								costUsd: 0,
+							};
+						}
+						runningTotals[point.account].requests += point.requests;
+						runningTotals[point.account].tokens += point.tokens;
+						runningTotals[point.account].costUsd += point.costUsd;
+
+						return {
+							...point,
+							requests: runningTotals[point.account].requests,
+							tokens: runningTotals[point.account].tokens,
+							costUsd: runningTotals[point.account].costUsd,
 						};
 					}
 					return point;

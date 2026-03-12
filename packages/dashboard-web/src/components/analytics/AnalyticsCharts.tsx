@@ -77,6 +77,8 @@ interface MainMetricsChartProps {
 	setSelectedMetric: (metric: string) => void;
 	modelBreakdown?: boolean;
 	onModelBreakdownChange?: (enabled: boolean) => void;
+	accountBreakdown?: boolean;
+	onAccountBreakdownChange?: (enabled: boolean) => void;
 }
 
 export function MainMetricsChart({
@@ -89,6 +91,8 @@ export function MainMetricsChart({
 	setSelectedMetric,
 	modelBreakdown = false,
 	onModelBreakdownChange,
+	accountBreakdown = false,
+	onAccountBreakdownChange,
 }: MainMetricsChartProps) {
 	// Process data for multi-model chart if model breakdown is enabled (not in cumulative mode)
 	const processedMultiModelData =
@@ -186,6 +190,88 @@ export function MainMetricsChart({
 				})()
 			: null;
 
+	// Process data for multi-account chart if account breakdown is enabled
+	const processedMultiAccountData =
+		rawTimeSeries && accountBreakdown
+			? (() => {
+					const grouped: Record<
+						string,
+						{ time: string; [account: string]: string | number }
+					> = {};
+					const accounts = new Set<string>();
+					const timePoints = new Set<string>();
+					const timeToTimestamp = new Map<string, number>();
+
+					rawTimeSeries.forEach((point) => {
+						if (point.account) {
+							accounts.add(point.account);
+							const time =
+								timeRange === "30d"
+									? new Date(point.ts).toLocaleDateString()
+									: new Date(point.ts).toLocaleTimeString([], {
+											hour: "2-digit",
+											minute: "2-digit",
+										});
+							timePoints.add(time);
+							timeToTimestamp.set(time, point.ts);
+						}
+					});
+
+					const sortedTimes = Array.from(timePoints).sort((a, b) => {
+						const tsA = timeToTimestamp.get(a) || 0;
+						const tsB = timeToTimestamp.get(b) || 0;
+						return tsA - tsB;
+					});
+
+					const accountArrays = Array.from(accounts).sort();
+
+					sortedTimes.forEach((time) => {
+						grouped[time] = { time };
+						accountArrays.forEach((account) => {
+							grouped[time][account] = 0;
+						});
+					});
+
+					rawTimeSeries.forEach((point) => {
+						if (point.account) {
+							const time =
+								timeRange === "30d"
+									? new Date(point.ts).toLocaleDateString()
+									: new Date(point.ts).toLocaleTimeString([], {
+											hour: "2-digit",
+											minute: "2-digit",
+										});
+
+							let value = 0;
+							switch (selectedMetric) {
+								case "requests":
+									value = point.requests;
+									break;
+								case "tokens":
+									value = point.tokens;
+									break;
+								case "cost":
+									value = point.costUsd;
+									break;
+								case "responseTime":
+									value = point.avgResponseTime;
+									break;
+								case "tokensPerSecond":
+									value = point.avgTokensPerSecond || 0;
+									break;
+							}
+
+							grouped[time][point.account] = value;
+						}
+					});
+
+					return {
+						data: sortedTimes.map((time) => grouped[time]),
+						models: accountArrays,
+					};
+				})()
+			: null;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -195,23 +281,43 @@ export function MainMetricsChart({
 						<CardDescription>
 							{viewMode === "cumulative"
 								? "Cumulative totals showing growth over time"
-								: modelBreakdown
-									? "Per-model breakdown over time"
-									: "Request volume and performance metrics over time"}
+								: accountBreakdown
+									? "Per-account breakdown over time"
+									: modelBreakdown
+										? "Per-model breakdown over time"
+										: "Request volume and performance metrics over time"}
 						</CardDescription>
 					</div>
 					<div className="flex items-center gap-4">
 						{viewMode !== "cumulative" && (
-							<div className="flex items-center gap-2">
-								<Switch
-									id="model-breakdown"
-									checked={modelBreakdown}
-									onCheckedChange={onModelBreakdownChange}
-								/>
-								<Label htmlFor="model-breakdown" className="text-sm">
-									Per Model
-								</Label>
-							</div>
+							<>
+								<div className="flex items-center gap-2">
+									<Switch
+										id="account-breakdown"
+										checked={accountBreakdown}
+										onCheckedChange={(enabled) => {
+											onAccountBreakdownChange?.(enabled);
+											if (enabled) onModelBreakdownChange?.(false);
+										}}
+									/>
+									<Label htmlFor="account-breakdown" className="text-sm">
+										Per Account
+									</Label>
+								</div>
+								<div className="flex items-center gap-2">
+									<Switch
+										id="model-breakdown"
+										checked={modelBreakdown}
+										onCheckedChange={(enabled) => {
+											onModelBreakdownChange?.(enabled);
+											if (enabled) onAccountBreakdownChange?.(false);
+										}}
+									/>
+									<Label htmlFor="model-breakdown" className="text-sm">
+										Per Model
+									</Label>
+								</div>
+							</>
 						)}
 						<Select value={selectedMetric} onValueChange={setSelectedMetric}>
 							<SelectTrigger className="w-40">
@@ -230,6 +336,27 @@ export function MainMetricsChart({
 			</CardHeader>
 			<CardContent>
 				{(() => {
+					// Show multi-account chart if account breakdown is enabled
+					if (accountBreakdown && processedMultiAccountData) {
+						return (
+							<MultiModelChart
+								data={processedMultiAccountData.data}
+								models={processedMultiAccountData.models}
+								metric={
+									selectedMetric as
+										| "requests"
+										| "tokens"
+										| "cost"
+										| "responseTime"
+										| "tokensPerSecond"
+								}
+								loading={loading}
+								height={CHART_HEIGHTS.large}
+								viewMode={viewMode}
+							/>
+						);
+					}
+
 					// Show multi-model chart if breakdown is enabled
 					if (modelBreakdown && processedMultiModelData) {
 						return (

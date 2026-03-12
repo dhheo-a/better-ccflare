@@ -48,6 +48,7 @@ export const useAnalytics = (
 	viewMode: "normal" | "cumulative",
 	modelBreakdown?: boolean,
 	customDateRange?: { startMs: number; endMs: number },
+	accountBreakdown?: boolean,
 ) => {
 	const logger = {
 		debug: (message: string, ...args: unknown[]) => {
@@ -65,6 +66,7 @@ export const useAnalytics = (
 			viewMode,
 			modelBreakdown,
 			customDateRange,
+			accountBreakdown,
 		),
 		queryFn: async () => {
 			logger.debug(`Starting analytics query`, {
@@ -72,6 +74,7 @@ export const useAnalytics = (
 				filters,
 				viewMode,
 				modelBreakdown,
+				accountBreakdown,
 				customDateRange,
 				timestamp: new Date().toISOString(),
 			});
@@ -83,12 +86,14 @@ export const useAnalytics = (
 					viewMode,
 					modelBreakdown,
 					customDateRange,
+					accountBreakdown,
 				);
 				logger.debug(`Analytics query completed successfully`, {
 					timeRange,
 					filters,
 					viewMode,
 					modelBreakdown,
+					accountBreakdown,
 					resultType: Array.isArray(result) ? "array" : "object",
 					timestamp: new Date().toISOString(),
 				});
@@ -99,6 +104,7 @@ export const useAnalytics = (
 					filters,
 					viewMode,
 					modelBreakdown,
+					accountBreakdown,
 					error: error instanceof Error ? error.message : String(error),
 					errorStack: error instanceof Error ? error.stack : undefined,
 					timestamp: new Date().toISOString(),

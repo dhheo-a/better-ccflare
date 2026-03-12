@@ -42,6 +42,7 @@ export interface StatsWithAccounts extends Stats {
 export interface TimePoint {
 	ts: number; // period start (ms)
 	model?: string; // Optional model name for per-model time series
+	account?: string; // Optional account name for per-account time series
 	requests: number;
 	tokens: number;
 	costUsd: number;
