@@ -34,6 +34,7 @@ interface AccountListItemProps {
 	onAutoRefreshToggle: (account: Account) => void;
 	onCustomEndpointChange?: (account: Account) => void;
 	onModelMappingsChange?: (account: Account) => void;
+	onReauthSuccess?: () => void;
 }
 
 export function AccountListItem({
@@ -48,6 +49,7 @@ export function AccountListItem({
 	onAutoRefreshToggle,
 	onCustomEndpointChange,
 	onModelMappingsChange,
+	onReauthSuccess,
 }: AccountListItemProps) {
 	const presenter = new AccountPresenter(account);
 	// Only hard-limit statuses mean the account is actually blocked; soft warnings
@@ -113,6 +115,8 @@ export function AccountListItem({
 							<OAuthTokenStatusWithBoundary
 								accountName={account.name}
 								hasRefreshToken={account.hasRefreshToken}
+								account={account}
+								onReauthSuccess={onReauthSuccess}
 							/>
 							{providerSupportsAutoFeatures(account.provider) && (
 								<>

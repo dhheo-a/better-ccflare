@@ -275,6 +275,26 @@ class API extends HttpClient {
 		}
 	}
 
+	async reauthInitAccount(
+		accountId: string,
+	): Promise<{ authUrl: string; sessionId: string }> {
+		const url = `/api/accounts/${accountId}/reauth-init`;
+		const response = await this.post<{ authUrl: string; sessionId: string }>(
+			url,
+			{},
+		);
+		return response;
+	}
+
+	async reauthCompleteAccount(
+		accountId: string,
+		data: { sessionId: string; code: string },
+	): Promise<{ message: string }> {
+		const url = `/api/accounts/${accountId}/reauth-complete`;
+		const response = await this.post<{ message: string }>(url, data);
+		return response;
+	}
+
 	async addZaiAccount(data: {
 		name: string;
 		apiKey: string;

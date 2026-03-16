@@ -12,6 +12,7 @@ interface AccountListProps {
 	onAutoRefreshToggle: (account: Account) => void;
 	onCustomEndpointChange?: (account: Account) => void;
 	onModelMappingsChange?: (account: Account) => void;
+	onReauthSuccess?: () => void;
 }
 
 export function AccountList({
@@ -25,6 +26,7 @@ export function AccountList({
 	onAutoRefreshToggle,
 	onCustomEndpointChange,
 	onModelMappingsChange,
+	onReauthSuccess,
 }: AccountListProps) {
 	if (!accounts || accounts.length === 0) {
 		return <p className="text-muted-foreground">No accounts configured</p>;
@@ -63,6 +65,7 @@ export function AccountList({
 					onAutoRefreshToggle={onAutoRefreshToggle}
 					onCustomEndpointChange={onCustomEndpointChange}
 					onModelMappingsChange={onModelMappingsChange}
+					onReauthSuccess={onReauthSuccess}
 				/>
 			))}
 		</div>

@@ -174,6 +174,45 @@ export class OAuthFlow {
 	}
 
 	/**
+	 * Completes re-authentication for an existing account, updating its tokens.
+	 */
+	async completeReauth(
+		accountId: string,
+		code: string,
+		flowData: BeginResult,
+	): Promise<AccountCreated> {
+		const oauthProvider = getOAuthProvider("anthropic");
+		if (!oauthProvider) {
+			throw new Error("Anthropic OAuth provider not found");
+		}
+
+		const tokens = await oauthProvider.exchangeCode(
+			code,
+			flowData.pkce.verifier,
+			flowData.oauthConfig,
+		);
+
+		await this.dbOps.updateAccountTokens(
+			accountId,
+			tokens.accessToken,
+			tokens.expiresAt,
+			tokens.refreshToken || undefined,
+		);
+
+		const account = await this.dbOps.getAccount(accountId);
+		if (!account) {
+			throw new Error("Account not found after token update");
+		}
+
+		return {
+			id: accountId,
+			name: account.name,
+			provider: "anthropic",
+			authType: "oauth",
+		};
+	}
+
+	/**
 	 * Creates an API key using the Anthropic console endpoint.
 	 *
 	 * This is used for "console" mode accounts where users want a static API key

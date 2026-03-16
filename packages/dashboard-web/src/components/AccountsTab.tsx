@@ -487,6 +487,7 @@ export function AccountsTab() {
 						onAutoRefreshToggle={handleAutoRefreshToggle}
 						onCustomEndpointChange={handleCustomEndpointChange}
 						onModelMappingsChange={handleModelMappingsChange}
+						onReauthSuccess={loadAccounts}
 					/>
 				</CardContent>
 			</Card>

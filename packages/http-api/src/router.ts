@@ -9,6 +9,8 @@ import {
 	createAccountModelMappingsUpdateHandler,
 	createAccountPauseHandler,
 	createAccountPriorityUpdateHandler,
+	createAccountReauthCompleteHandler,
+	createAccountReauthInitHandler,
 	createAccountReloadHandler,
 	createAccountRemoveHandler,
 	createAccountRenameHandler,
@@ -362,6 +364,26 @@ export class APIRouter {
 					req,
 					url,
 				);
+			}
+
+			// Account reauth init
+			if (path.endsWith("/reauth-init") && method === "POST") {
+				const reauthInitHandler = createAccountReauthInitHandler(
+					this.context.dbOps,
+				);
+				return await this.wrapHandler((req) =>
+					reauthInitHandler(req, accountId),
+				)(req, url);
+			}
+
+			// Account reauth complete
+			if (path.endsWith("/reauth-complete") && method === "POST") {
+				const reauthCompleteHandler = createAccountReauthCompleteHandler(
+					this.context.dbOps,
+				);
+				return await this.wrapHandler((req) =>
+					reauthCompleteHandler(req, accountId),
+				)(req, url);
 			}
 
 			// Account force-reset rate limit

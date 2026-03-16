@@ -56,12 +56,6 @@ export type AnyUsageData =
 /**
  * Fetch usage data from Anthropic's OAuth usage endpoint
  */
-interface UsageFetchResult {
-	data: UsageData | null;
-	/** Milliseconds to wait before next retry (set on 429 responses) */
-	retryAfterMs?: number;
-}
-
 function parseRetryAfterMs(header: string | null): number {
 	if (!header) return 60000;
 	const seconds = parseInt(header, 10);

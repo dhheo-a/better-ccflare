@@ -23,6 +23,7 @@ import {
 	NotFound,
 } from "@better-ccflare/http-common";
 import { Logger } from "@better-ccflare/logger";
+import { createOAuthFlow } from "@better-ccflare/oauth-flow";
 import {
 	fetchUsageData,
 	getRepresentativeUtilization,
@@ -140,9 +141,7 @@ export function createAccountsListHandler(db: Database) {
 				if (!isCacheFresh && account.access_token) {
 					// Fetch usage data if cache is stale or missing
 					try {
-						const { data: usageData } = await fetchUsageData(
-							account.access_token,
-						);
+						const usageData = await fetchUsageData(account.access_token);
 						if (usageData) {
 							// Update the cache using the public set method
 							usageCache.set(account.id, usageData);
@@ -1981,7 +1980,7 @@ export function createAccountForceResetRateLimitHandler(
 				account.provider === "anthropic" &&
 				account.access_token
 			) {
-				const { data: usageData } = await fetchUsageData(account.access_token);
+				const usageData = await fetchUsageData(account.access_token);
 				if (usageData) {
 					usageCache.set(account.id, usageData);
 					usagePollTriggered = true;
@@ -2052,6 +2051,151 @@ export function createAccountReloadHandler(dbOps: DatabaseOperations) {
 				error instanceof Error
 					? error
 					: new Error("Failed to reload account tokens"),
+			);
+		}
+	};
+}
+
+/**
+ * Create an account reauth-init handler
+ * Starts OAuth re-authentication flow for an existing account
+ */
+export function createAccountReauthInitHandler(dbOps: DatabaseOperations) {
+	return async (_req: Request, accountId: string): Promise<Response> => {
+		try {
+			const account = await dbOps.getAccount(accountId);
+			if (!account) {
+				return errorResponse(NotFound("Account not found"));
+			}
+
+			if (account.provider !== "anthropic") {
+				return errorResponse(
+					BadRequest(
+						"Re-authentication is only available for Anthropic OAuth accounts",
+					),
+				);
+			}
+
+			if (!account.refresh_token) {
+				return errorResponse(
+					BadRequest(
+						"This account does not use OAuth and cannot be re-authenticated",
+					),
+				);
+			}
+
+			const { Config } = await import("@better-ccflare/config");
+			const config = new Config();
+			const oauthFlow = await createOAuthFlow(dbOps, config);
+
+			const flowResult = await oauthFlow.begin({
+				name: account.name,
+				mode: "claude-oauth",
+				skipAccountCheck: true,
+			});
+
+			dbOps.createOAuthSession(
+				flowResult.sessionId,
+				account.name,
+				flowResult.pkce.verifier,
+				"claude-oauth",
+				`__reauth__:${accountId}`,
+				10,
+			);
+
+			return jsonResponse({
+				success: true,
+				authUrl: flowResult.authUrl,
+				sessionId: flowResult.sessionId,
+			});
+		} catch (error) {
+			log.error("Account reauth init error:", error);
+			return errorResponse(
+				error instanceof Error
+					? error
+					: new Error("Failed to initialize re-authentication"),
+			);
+		}
+	};
+}
+
+/**
+ * Create an account reauth-complete handler
+ * Completes OAuth re-authentication and updates account tokens
+ */
+export function createAccountReauthCompleteHandler(dbOps: DatabaseOperations) {
+	return async (req: Request, accountId: string): Promise<Response> => {
+		try {
+			const body = await req.json();
+
+			const sessionId = validateString(body.sessionId, "sessionId", {
+				required: true,
+			});
+			const code = validateString(body.code, "code", {
+				required: true,
+				minLength: 1,
+			});
+
+			if (!sessionId || !code) {
+				return errorResponse(BadRequest("sessionId and code are required"));
+			}
+
+			const oauthSession = await dbOps.getOAuthSession(sessionId);
+			if (!oauthSession) {
+				return errorResponse(
+					BadRequest("OAuth session expired or invalid. Please try again."),
+				);
+			}
+
+			// Verify this is a reauth session for this account
+			const _expectedPrefix = `__reauth__:${accountId}`;
+			if (!oauthSession.customEndpoint?.startsWith("__reauth__:")) {
+				return errorResponse(
+					BadRequest("Invalid session for re-authentication"),
+				);
+			}
+
+			const { Config } = await import("@better-ccflare/config");
+			const config = new Config();
+			const oauthFlow = await createOAuthFlow(dbOps, config);
+
+			const { getOAuthProvider } = await import("@better-ccflare/providers");
+			const oauthProvider = getOAuthProvider("anthropic");
+			if (!oauthProvider) {
+				throw new Error("OAuth provider not found");
+			}
+			const runtime = config.getRuntime();
+			const oauthConfig = oauthProvider.getOAuthConfig("claude-oauth");
+			oauthConfig.clientId = runtime.clientId;
+
+			const flowData = {
+				sessionId,
+				authUrl: "",
+				pkce: { verifier: oauthSession.verifier, challenge: "" },
+				oauthConfig,
+				mode: "claude-oauth" as const,
+			};
+
+			const result = await oauthFlow.completeReauth(accountId, code, flowData);
+
+			dbOps.deleteOAuthSession(sessionId);
+
+			// Clear caches so next request uses fresh tokens
+			clearAccountRefreshCache(accountId);
+			usageCache.delete(accountId);
+
+			log.info(`Re-authentication completed for account '${result.name}'`);
+
+			return jsonResponse({
+				success: true,
+				message: `Account '${result.name}' re-authenticated successfully!`,
+			});
+		} catch (error) {
+			log.error("Account reauth complete error:", error);
+			return errorResponse(
+				error instanceof Error
+					? error
+					: new Error("Failed to complete re-authentication"),
 			);
 		}
 	};
