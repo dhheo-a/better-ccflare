@@ -68,7 +68,9 @@ function parseRetryAfterMs(header: string | null): number {
 
 async function fetchUsageDataWithResult(
 	accessToken: string,
+	accountName?: string,
 ): Promise<UsageFetchResult> {
+	const accountLabel = accountName ? ` [account: ${accountName}]` : "";
 	try {
 		const response = await fetch("https://api.anthropic.com/api/oauth/usage", {
 			method: "GET",
@@ -87,7 +89,7 @@ async function fetchUsageDataWithResult(
 
 			if (response.status === 429) {
 				log.warn(
-					`Usage data rate limited (429)${retryAfterHeader ? ` (Retry-After header: ${retryAfterHeader})` : ""}`,
+					`Usage data rate limited (429)${accountLabel}${retryAfterHeader ? ` (Retry-After header: ${retryAfterHeader})` : ""}`,
 				);
 				return { data: null, retryAfterMs };
 			}
@@ -128,8 +130,9 @@ async function fetchUsageDataWithResult(
 
 export async function fetchUsageData(
 	accessToken: string,
+	accountName?: string,
 ): Promise<UsageData | null> {
-	return (await fetchUsageDataWithResult(accessToken)).data;
+	return (await fetchUsageDataWithResult(accessToken, accountName)).data;
 }
 
 /**
@@ -229,6 +232,7 @@ class UsageCache {
 	private providerTypes = new Map<string, string>(); // Track provider type for each account
 	private customEndpoints = new Map<string, string | null>(); // Track custom endpoints
 	private rateLimitDelays = new Map<string, number>(); // Retry-After delays per account
+	private accountNames = new Map<string, string>(); // Track account name for logging
 
 	/**
 	 * Schedule the next poll with exponential backoff on failures,
@@ -306,6 +310,7 @@ class UsageCache {
 		provider?: string,
 		intervalMs?: number,
 		customEndpoint?: string | null,
+		accountName?: string,
 	) {
 		// Check if provider supports usage tracking
 		if (provider && !supportsUsageTracking(provider)) {
@@ -334,12 +339,15 @@ class UsageCache {
 				: accessTokenOrProvider;
 		this.tokenProviders.set(accountId, tokenProvider);
 
-		// Store provider type and custom endpoint for this account
+		// Store provider type, custom endpoint, and account name for this account
 		if (provider) {
 			this.providerTypes.set(accountId, provider);
 		}
 		if (customEndpoint !== undefined) {
 			this.customEndpoints.set(accountId, customEndpoint);
+		}
+		if (accountName) {
+			this.accountNames.set(accountId, accountName);
 		}
 
 		// Default to 60s if not provided
@@ -403,6 +411,7 @@ class UsageCache {
 			this.tokenProviders.delete(accountId);
 			this.failureCounts.delete(accountId);
 			this.rateLimitDelays.delete(accountId);
+			this.accountNames.delete(accountId);
 			// Clean up cache entry when polling stops to prevent memory leaks
 			this.cache.delete(accountId);
 			log.info(
@@ -510,7 +519,8 @@ class UsageCache {
 				}
 			} else {
 				// Default to Anthropic usage data
-				const result = await fetchUsageDataWithResult(token);
+				const accountName = this.accountNames.get(accountId);
+				const result = await fetchUsageDataWithResult(token, accountName);
 				if (result.retryAfterMs !== undefined) {
 					this.rateLimitDelays.set(accountId, result.retryAfterMs);
 				}
