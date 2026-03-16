@@ -13,9 +13,9 @@
 
 import { Database } from "bun:sqlite";
 import { SQL } from "bun";
-import { resolveDbPath } from "./paths";
-import { ensureSchemaPg } from "./migrations-pg";
 import { BunSqlAdapter } from "./adapters/bun-sql-adapter";
+import { ensureSchemaPg } from "./migrations-pg";
+import { resolveDbPath } from "./paths";
 
 const BATCH_SIZE = 500;
 const isDryRun = process.argv.includes("--dry-run");
@@ -50,7 +50,9 @@ async function migrateTable<T extends Record<string, unknown>>(
 			`\r  ✦  ${label}: ${migrated} / ${rows.length} 행 처리됨`,
 		);
 	}
-	console.log(`\r  ✅ ${label}: ${migrated}행 이관 완료${isDryRun ? " (dry-run)" : ""}`);
+	console.log(
+		`\r  ✅ ${label}: ${migrated}행 이관 완료${isDryRun ? " (dry-run)" : ""}`,
+	);
 }
 
 // ──────────────────────────────────────────────
@@ -355,7 +357,9 @@ async function main(): Promise<void> {
 		!databaseUrl.startsWith("postgres://") &&
 		!databaseUrl.startsWith("postgresql://")
 	) {
-		console.error("❌ DATABASE_URL은 postgres:// 또는 postgresql://로 시작해야 합니다.");
+		console.error(
+			"❌ DATABASE_URL은 postgres:// 또는 postgresql://로 시작해야 합니다.",
+		);
 		process.exit(1);
 	}
 
@@ -363,7 +367,9 @@ async function main(): Promise<void> {
 	console.log("  better-ccflare: SQLite → PostgreSQL 데이터 이관");
 	console.log("=".repeat(60));
 	console.log(`  SQLite 경로 : ${dbPath}`);
-	console.log(`  PostgreSQL  : ${databaseUrl.replace(/:\/\/[^@]+@/, "://*****@")}`);
+	console.log(
+		`  PostgreSQL  : ${databaseUrl.replace(/:\/\/[^@]+@/, "://*****@")}`,
+	);
 	if (isDryRun) console.log("  모드       : DRY-RUN (실제 쓰기 없음)");
 	if (skipRequests) console.log("  제외       : requests, request_payloads");
 	console.log("=".repeat(60));
