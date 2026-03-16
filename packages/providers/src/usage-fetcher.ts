@@ -246,7 +246,7 @@ class UsageCache {
 		baseIntervalMs: number,
 		provider?: string,
 		customEndpoint?: string | null,
-		overrideDelayMs?: number,
+		_overrideDelayMs?: number,
 	) {
 		const failures = this.failureCounts.get(accountId) ?? 0;
 		// Exponential backoff capped at 30 minutes
