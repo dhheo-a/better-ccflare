@@ -332,3 +332,13 @@ export const useRateLimitEvents = (accountId: string) => {
 		enabled: !!accountId,
 	});
 };
+
+export const useRecentRateLimitEvents = (limit = 50) => {
+	return useQuery({
+		queryKey: queryKeys.recentRateLimitEvents(),
+		queryFn: () => api.getRateLimitEvents(undefined, limit),
+		staleTime: 30_000,
+		refetchInterval: 60_000,
+		refetchIntervalInBackground: false,
+	});
+};

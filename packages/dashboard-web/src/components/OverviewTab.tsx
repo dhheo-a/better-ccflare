@@ -27,6 +27,7 @@ import { ChartsSection } from "./overview/ChartsSection";
 import { DataRetentionCard } from "./overview/DataRetentionCard";
 import { LoadingSkeleton } from "./overview/LoadingSkeleton";
 import { MetricCard } from "./overview/MetricCard";
+import { RateLimitHistoryCard } from "./overview/RateLimitHistoryCard";
 import { RateLimitInfo } from "./overview/RateLimitInfo";
 import { SystemStatus } from "./overview/SystemStatus";
 import { TimeRangeSelector } from "./overview/TimeRangeSelector";
@@ -508,6 +509,8 @@ export const OverviewTab = React.memo(() => {
 			<SystemStatus recentErrors={stats?.recentErrors} />
 
 			{accounts && <RateLimitInfo accounts={accounts} />}
+
+			<RateLimitHistoryCard />
 
 			{/* Configuration Row */}
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

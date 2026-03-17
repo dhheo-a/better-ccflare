@@ -32,4 +32,6 @@ export const queryKeys = {
 	clientIpAliases: () => [...queryKeys.all, "client-ip-aliases"] as const,
 	rateLimitEvents: (accountId: string) =>
 		[...queryKeys.all, "rate-limit-events", accountId] as const,
+	recentRateLimitEvents: () =>
+		[...queryKeys.all, "rate-limit-events", "recent"] as const,
 } as const;
