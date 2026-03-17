@@ -13,6 +13,7 @@ import { AgentPreferenceRepository } from "./repositories/agent-preference.repos
 import { ApiKeyRepository } from "./repositories/api-key.repository";
 import { ClientIpAliasRepository } from "./repositories/client-ip-alias.repository";
 import { OAuthRepository } from "./repositories/oauth.repository";
+import { RateLimitEventRepository } from "./repositories/rate-limit-event.repository";
 import {
 	type RequestData,
 	RequestRepository,
@@ -165,6 +166,7 @@ export class DatabaseOperations implements StrategyStore, Disposable {
 	private agentPreferences: AgentPreferenceRepository;
 	private apiKeys: ApiKeyRepository;
 	private clientIpAliases: ClientIpAliasRepository;
+	private rateLimitEvents: RateLimitEventRepository;
 
 	constructor(
 		dbPath?: string,
@@ -235,6 +237,7 @@ export class DatabaseOperations implements StrategyStore, Disposable {
 		this.agentPreferences = new AgentPreferenceRepository(this.adapter);
 		this.apiKeys = new ApiKeyRepository(this.adapter);
 		this.clientIpAliases = new ClientIpAliasRepository(this.adapter);
+		this.rateLimitEvents = new RateLimitEventRepository(this.adapter);
 	}
 
 	/**
@@ -308,6 +311,10 @@ export class DatabaseOperations implements StrategyStore, Disposable {
 	 */
 	getRetryConfig(): DatabaseRetryConfig {
 		return this.retryConfig;
+	}
+
+	getRateLimitEventRepository(): RateLimitEventRepository {
+		return this.rateLimitEvents;
 	}
 
 	// Account operations delegated to repository with retry logic

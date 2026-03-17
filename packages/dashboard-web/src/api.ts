@@ -10,6 +10,7 @@ import type {
 	AgentWorkspace,
 	AnalyticsResponse,
 	LogEvent,
+	RateLimitEventsResponse,
 	RequestPayload,
 	RequestResponse,
 	StatsWithAccounts,
@@ -1521,6 +1522,17 @@ class API extends HttpClient {
 
 	async deleteClientIpAlias(ip: string): Promise<void> {
 		await this.delete(`/api/client-ip-aliases/${encodeURIComponent(ip)}`);
+	}
+
+	async getRateLimitEvents(
+		accountId?: string,
+		limit = 50,
+	): Promise<RateLimitEventsResponse> {
+		const params = new URLSearchParams({ limit: String(limit) });
+		if (accountId) {
+			params.set("account_id", accountId);
+		}
+		return this.get(`/api/rate-limit-events?${params.toString()}`);
 	}
 }
 

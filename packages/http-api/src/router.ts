@@ -61,6 +61,7 @@ import {
 	createOAuthCallbackHandler,
 	createOAuthInitHandler,
 } from "./handlers/oauth";
+import { createRateLimitEventsHandler } from "./handlers/rate-limit-events";
 import {
 	createRequestPayloadHandler,
 	createRequestsDetailHandler,
@@ -140,6 +141,9 @@ export class APIRouter {
 		const apiKeysGenerateHandler = createApiKeysGenerateHandler(dbOps);
 		const apiKeysStatsHandler = createApiKeysStatsHandler(dbOps);
 
+		// Rate limit events handler
+		const rateLimitEventsHandler = createRateLimitEventsHandler(dbOps);
+
 		// Register routes
 		this.handlers.set("GET:/health", () => healthHandler());
 		this.handlers.set("GET:/api/stats", (_req, url) => statsHandler(url));
@@ -183,6 +187,10 @@ export class APIRouter {
 		this.handlers.set(
 			"GET:/api/token-health/reauth-needed",
 			reauthNeededHandler,
+		);
+
+		this.handlers.set("GET:/api/rate-limit-events", (_req, url) =>
+			rateLimitEventsHandler(url),
 		);
 
 		this.handlers.set("POST:/api/oauth/init", (req) => oauthInitHandler(req));

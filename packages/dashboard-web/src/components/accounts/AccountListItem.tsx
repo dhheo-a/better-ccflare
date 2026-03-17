@@ -4,12 +4,14 @@ import {
 	Edit2,
 	Globe,
 	Hash,
+	History,
 	Pause,
 	Play,
 	RefreshCw,
 	Trash2,
 	Zap,
 } from "lucide-react";
+import { useState } from "react";
 import type { Account } from "../../api";
 import {
 	providerShowsCreditsBalance,
@@ -20,6 +22,7 @@ import {
 import { OAuthTokenStatusWithBoundary } from "../OAuthTokenStatus";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
+import { RateLimitHistoryDialog } from "./RateLimitHistoryDialog";
 import { RateLimitProgress } from "./RateLimitProgress";
 
 interface AccountListItemProps {
@@ -51,6 +54,7 @@ export function AccountListItem({
 	onModelMappingsChange,
 	onReauthSuccess,
 }: AccountListItemProps) {
+	const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 	const presenter = new AccountPresenter(account);
 	// Only hard-limit statuses mean the account is actually blocked; soft warnings
 	// like "allowed_warning" / "queueing_soft" mean the account is still usable.
@@ -91,237 +95,252 @@ export function AccountListItem({
 	}
 
 	return (
-		<div
-			key={account.name}
-			className={`p-4 border rounded-lg transition-colors space-y-4 ${
-				isActive
-					? "border-primary bg-primary/5 shadow-sm"
-					: "border-border hover:border-muted-foreground/50"
-			}`}
-		>
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-4">
-					<div>
-						<div className="flex items-center gap-2">
-							<p className="font-medium">{account.name}</p>
-							{isActive && (
-								<span className="px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
-									Active
+		<>
+			<div
+				key={account.name}
+				className={`p-4 border rounded-lg transition-colors space-y-4 ${
+					isActive
+						? "border-primary bg-primary/5 shadow-sm"
+						: "border-border hover:border-muted-foreground/50"
+				}`}
+			>
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-4">
+						<div>
+							<div className="flex items-center gap-2">
+								<p className="font-medium">{account.name}</p>
+								{isActive && (
+									<span className="px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground rounded-full">
+										Active
+									</span>
+								)}
+								<span className="px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground rounded-full">
+									Priority: {account.priority}
 								</span>
-							)}
-							<span className="px-2 py-0.5 text-xs font-medium bg-secondary text-secondary-foreground rounded-full">
-								Priority: {account.priority}
-							</span>
-							<OAuthTokenStatusWithBoundary
-								accountName={account.name}
-								hasRefreshToken={account.hasRefreshToken}
-								account={account}
-								onReauthSuccess={onReauthSuccess}
-							/>
-							{providerSupportsAutoFeatures(account.provider) && (
-								<>
-									<div className="flex items-center gap-2">
-										<span className="text-xs text-muted-foreground">
-											Auto-fallback:
-										</span>
-										<Switch
-											checked={account.autoFallbackEnabled}
-											onCheckedChange={() => onAutoFallbackToggle(account)}
-											title="Toggle auto-fallback for this account"
-										/>
-									</div>
-									<div className="flex items-center gap-2">
-										<span className="text-xs text-muted-foreground">
-											Auto-refresh:
-										</span>
-										<Switch
-											checked={account.autoRefreshEnabled}
-											onCheckedChange={() => onAutoRefreshToggle(account)}
-											title="Toggle auto-refresh for this account"
-										/>
-									</div>
-								</>
-							)}
+								<OAuthTokenStatusWithBoundary
+									accountName={account.name}
+									hasRefreshToken={account.hasRefreshToken}
+									account={account}
+									onReauthSuccess={onReauthSuccess}
+								/>
+								{providerSupportsAutoFeatures(account.provider) && (
+									<>
+										<div className="flex items-center gap-2">
+											<span className="text-xs text-muted-foreground">
+												Auto-fallback:
+											</span>
+											<Switch
+												checked={account.autoFallbackEnabled}
+												onCheckedChange={() => onAutoFallbackToggle(account)}
+												title="Toggle auto-fallback for this account"
+											/>
+										</div>
+										<div className="flex items-center gap-2">
+											<span className="text-xs text-muted-foreground">
+												Auto-refresh:
+											</span>
+											<Switch
+												checked={account.autoRefreshEnabled}
+												onCheckedChange={() => onAutoRefreshToggle(account)}
+												title="Toggle auto-refresh for this account"
+											/>
+										</div>
+									</>
+								)}
+							</div>
+							<div className="flex items-center gap-2">
+								<p className="text-sm text-muted-foreground">
+									{account.provider}
+								</p>
+								{account.provider === "bedrock" && bedrockProfile && (
+									<>
+										<span className="text-sm text-muted-foreground">•</span>
+										<p className="text-sm text-muted-foreground">
+											Profile: {bedrockProfile}
+										</p>
+										{bedrockRegion && (
+											<>
+												<span className="text-sm text-muted-foreground">•</span>
+												<div
+													className="flex items-center gap-1"
+													title={`Region: ${bedrockRegion}`}
+												>
+													<Globe className="h-3 w-3 text-muted-foreground" />
+													<p className="text-sm text-muted-foreground">
+														{bedrockRegion}
+													</p>
+												</div>
+											</>
+										)}
+										{bedrockCrossRegionMode && (
+											<>
+												<span className="text-sm text-muted-foreground">•</span>
+												<p
+													className="text-sm text-muted-foreground"
+													title="Cross-region inference mode"
+												>
+													{bedrockCrossRegionMode}
+												</p>
+											</>
+										)}
+									</>
+								)}
+							</div>
 						</div>
 						<div className="flex items-center gap-2">
-							<p className="text-sm text-muted-foreground">
-								{account.provider}
-							</p>
-							{account.provider === "bedrock" && bedrockProfile && (
-								<>
-									<span className="text-sm text-muted-foreground">•</span>
-									<p className="text-sm text-muted-foreground">
-										Profile: {bedrockProfile}
-									</p>
-									{bedrockRegion && (
-										<>
-											<span className="text-sm text-muted-foreground">•</span>
-											<div
-												className="flex items-center gap-1"
-												title={`Region: ${bedrockRegion}`}
-											>
-												<Globe className="h-3 w-3 text-muted-foreground" />
-												<p className="text-sm text-muted-foreground">
-													{bedrockRegion}
-												</p>
-											</div>
-										</>
-									)}
-									{bedrockCrossRegionMode && (
-										<>
-											<span className="text-sm text-muted-foreground">•</span>
-											<p
-												className="text-sm text-muted-foreground"
-												title="Cross-region inference mode"
-											>
-												{bedrockCrossRegionMode}
-											</p>
-										</>
-									)}
-								</>
+							{presenter.isRateLimited && (
+								<span title="Account is rate-limited - requests will be rejected until the limit resets">
+									<AlertCircle className="h-4 w-4 text-yellow-600" />
+								</span>
+							)}
+							<span className="text-sm">{presenter.requestCount} requests</span>
+							{presenter.isPaused && (
+								<span className="text-sm text-muted-foreground">Paused</span>
+							)}
+							{!presenter.isPaused && presenter.rateLimitStatus !== "OK" && (
+								<span
+									className={`text-sm ${
+										presenter.rateLimitStatus
+											.toLowerCase()
+											.startsWith("allowed_warning")
+											? "text-amber-600"
+											: presenter.rateLimitStatus
+														.toLowerCase()
+														.startsWith("allowed")
+												? "text-green-600"
+												: "text-destructive"
+									}`}
+								>
+									{presenter.rateLimitStatus}
+								</span>
+							)}
+							{staleLockDetected && (
+								<span
+									className="text-sm text-amber-600"
+									title="Stale lock detected: usage data shows available capacity but account is still rate-limited"
+								>
+									Stale lock detected
+								</span>
 							)}
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
-						{presenter.isRateLimited && (
-							<span title="Account is rate-limited - requests will be rejected until the limit resets">
-								<AlertCircle className="h-4 w-4 text-yellow-600" />
-							</span>
-						)}
-						<span className="text-sm">{presenter.requestCount} requests</span>
-						{presenter.isPaused && (
-							<span className="text-sm text-muted-foreground">Paused</span>
-						)}
-						{!presenter.isPaused && presenter.rateLimitStatus !== "OK" && (
-							<span
-								className={`text-sm ${
-									presenter.rateLimitStatus
-										.toLowerCase()
-										.startsWith("allowed_warning")
-										? "text-amber-600"
-										: presenter.rateLimitStatus
-													.toLowerCase()
-													.startsWith("allowed")
-											? "text-green-600"
-											: "text-destructive"
-								}`}
-							>
-								{presenter.rateLimitStatus}
-							</span>
-						)}
-						{staleLockDetected && (
-							<span
-								className="text-sm text-amber-600"
-								title="Stale lock detected: usage data shows available capacity but account is still rate-limited"
-							>
-								Stale lock detected
-							</span>
-						)}
-					</div>
-				</div>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onRename(account)}
-						title="Rename account"
-					>
-						<Edit2 className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onPriorityChange(account)}
-						title="Change account priority"
-					>
-						<Zap className="h-4 w-4" />
-					</Button>
-					{onCustomEndpointChange && (
 						<Button
 							variant="ghost"
 							size="sm"
-							onClick={() => onCustomEndpointChange(account)}
-							title={
-								account.customEndpoint
-									? `Custom endpoint: ${account.customEndpoint}`
-									: "Set custom endpoint"
-							}
+							onClick={() => onRename(account)}
+							title="Rename account"
 						>
-							<Globe
-								className={`h-4 w-4 ${
-									account.customEndpoint ? "text-primary" : ""
-								}`}
-							/>
+							<Edit2 className="h-4 w-4" />
 						</Button>
-					)}
-					{onModelMappingsChange &&
-						providerSupportsModelMappings(account.provider) && (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => onPriorityChange(account)}
+							title="Change account priority"
+						>
+							<Zap className="h-4 w-4" />
+						</Button>
+						{onCustomEndpointChange && (
 							<Button
 								variant="ghost"
 								size="sm"
-								onClick={() => onModelMappingsChange(account)}
+								onClick={() => onCustomEndpointChange(account)}
 								title={
-									account.modelMappings
-										? `Model mappings configured (${Object.keys(account.modelMappings).length} mappings)`
-										: "Configure model mappings"
+									account.customEndpoint
+										? `Custom endpoint: ${account.customEndpoint}`
+										: "Set custom endpoint"
 								}
 							>
-								<Hash
+								<Globe
 									className={`h-4 w-4 ${
-										account.modelMappings ? "text-primary" : ""
+										account.customEndpoint ? "text-primary" : ""
 									}`}
 								/>
 							</Button>
 						)}
-					{showForceReset && (
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 gap-1 text-xs"
-							onClick={() => onForceResetRateLimit(account)}
-							title={
-								staleLockDetected
-									? "Reset stale rate limit lock (usage shows capacity available)"
-									: "Force clear rate limit state from database"
-							}
-						>
-							<RefreshCw className="h-3.5 w-3.5" />
-							Force Reset
-						</Button>
-					)}
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onPauseToggle(account)}
-						title={account.paused ? "Resume account" : "Pause account"}
-					>
-						{account.paused ? (
-							<Play className="h-4 w-4" />
-						) : (
-							<Pause className="h-4 w-4" />
+						{onModelMappingsChange &&
+							providerSupportsModelMappings(account.provider) && (
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => onModelMappingsChange(account)}
+									title={
+										account.modelMappings
+											? `Model mappings configured (${Object.keys(account.modelMappings).length} mappings)`
+											: "Configure model mappings"
+									}
+								>
+									<Hash
+										className={`h-4 w-4 ${
+											account.modelMappings ? "text-primary" : ""
+										}`}
+									/>
+								</Button>
+							)}
+						{showForceReset && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1 text-xs"
+								onClick={() => onForceResetRateLimit(account)}
+								title={
+									staleLockDetected
+										? "Reset stale rate limit lock (usage shows capacity available)"
+										: "Force clear rate limit state from database"
+								}
+							>
+								<RefreshCw className="h-3.5 w-3.5" />
+								Force Reset
+							</Button>
 						)}
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={() => onRemove(account.name)}
-					>
-						<Trash2 className="h-4 w-4" />
-					</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => setIsHistoryOpen(true)}
+							title="View rate limit history"
+						>
+							<History className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => onPauseToggle(account)}
+							title={account.paused ? "Resume account" : "Pause account"}
+						>
+							{account.paused ? (
+								<Play className="h-4 w-4" />
+							) : (
+								<Pause className="h-4 w-4" />
+							)}
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={() => onRemove(account.name)}
+						>
+							<Trash2 className="h-4 w-4" />
+						</Button>
+					</div>
 				</div>
+				{(account.rateLimitReset ||
+					providerShowsWeeklyUsage(account.provider) ||
+					providerShowsCreditsBalance(account.provider)) && (
+					<RateLimitProgress
+						resetIso={account.rateLimitReset}
+						usageUtilization={account.usageUtilization}
+						usageWindow={account.usageWindow}
+						usageData={account.usageData}
+						provider={account.provider}
+						showWeekly={providerShowsWeeklyUsage(account.provider)}
+					/>
+				)}
 			</div>
-			{(account.rateLimitReset ||
-				providerShowsWeeklyUsage(account.provider) ||
-				providerShowsCreditsBalance(account.provider)) && (
-				<RateLimitProgress
-					resetIso={account.rateLimitReset}
-					usageUtilization={account.usageUtilization}
-					usageWindow={account.usageWindow}
-					usageData={account.usageData}
-					provider={account.provider}
-					showWeekly={providerShowsWeeklyUsage(account.provider)}
-				/>
-			)}
-		</div>
+			<RateLimitHistoryDialog
+				account={account}
+				isOpen={isHistoryOpen}
+				onOpenChange={setIsHistoryOpen}
+			/>
+		</>
 	);
 }

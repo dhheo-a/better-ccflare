@@ -30,4 +30,6 @@ export const queryKeys = {
 	defaultAgentModel: () =>
 		[...queryKeys.all, "config", "defaultAgentModel"] as const,
 	clientIpAliases: () => [...queryKeys.all, "client-ip-aliases"] as const,
+	rateLimitEvents: (accountId: string) =>
+		[...queryKeys.all, "rate-limit-events", accountId] as const,
 } as const;

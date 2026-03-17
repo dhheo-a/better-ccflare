@@ -30,6 +30,17 @@ export function handleRateLimitResponse(
 		ctx.dbOps.markAccountRateLimited(account.id, resetTime),
 	);
 
+	ctx.asyncWriter.enqueue(() =>
+		ctx.dbOps.getRateLimitEventRepository().record({
+			accountId: account.id,
+			accountName: account.name,
+			occurredAt: Date.now(),
+			resetAt: rateLimitInfo.resetTime ?? null,
+			remaining: rateLimitInfo.remaining ?? null,
+			provider: account.provider,
+		}),
+	);
+
 	const rateLimitError = new RateLimitError(
 		account.id,
 		rateLimitInfo.resetTime,

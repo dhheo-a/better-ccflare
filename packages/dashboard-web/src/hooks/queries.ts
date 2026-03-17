@@ -323,3 +323,12 @@ export const useDeleteClientIpAlias = () => {
 		},
 	});
 };
+
+export const useRateLimitEvents = (accountId: string) => {
+	return useQuery({
+		queryKey: queryKeys.rateLimitEvents(accountId),
+		queryFn: () => api.getRateLimitEvents(accountId),
+		staleTime: 30_000,
+		enabled: !!accountId,
+	});
+};

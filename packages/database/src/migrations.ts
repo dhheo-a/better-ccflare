@@ -706,6 +706,25 @@ export function runMigrations(db: Database, dbPath?: string): void {
 			log.warn(`Error sanitizing account names: ${(error as Error).message}`);
 		}
 
+		// Create rate_limit_events table if it doesn't exist
+		db.prepare(`
+		CREATE TABLE IF NOT EXISTS rate_limit_events (
+			id TEXT PRIMARY KEY,
+			account_id TEXT NOT NULL,
+			account_name TEXT NOT NULL,
+			occurred_at INTEGER NOT NULL,
+			reset_at INTEGER,
+			remaining INTEGER,
+			provider TEXT NOT NULL
+		)
+	`).run();
+
+		// Create index for efficient account-based queries
+		db.prepare(`
+		CREATE INDEX IF NOT EXISTS idx_rate_limit_events_account_occurred
+		ON rate_limit_events(account_id, occurred_at DESC)
+	`).run();
+
 		// Populate default Claude model translations for Bedrock
 		// Use INSERT OR IGNORE to allow safe re-runs
 		const now = Date.now();

@@ -24,6 +24,8 @@ export type {
 	SimilarModel,
 } from "./repositories/model-translation.repository";
 export { ModelTranslationRepository } from "./repositories/model-translation.repository";
+export type { RateLimitEvent } from "./repositories/rate-limit-event.repository";
+export { RateLimitEventRepository } from "./repositories/rate-limit-event.repository";
 // Re-export repository types
 export type { StatsRepository } from "./repositories/stats.repository";
 

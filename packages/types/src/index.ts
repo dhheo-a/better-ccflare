@@ -9,6 +9,7 @@ export * from "./constants";
 export * from "./context";
 export * from "./conversation";
 export * from "./logging";
+export * from "./rate-limit-event";
 export * from "./request";
 export * from "./stats";
 export * from "./strategy";
