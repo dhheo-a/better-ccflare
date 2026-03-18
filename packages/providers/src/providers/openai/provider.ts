@@ -251,6 +251,13 @@ export class OpenAICompatibleProvider extends BaseProvider {
 		newHeaders.delete("anthropic-version");
 		newHeaders.delete("anthropic-dangerous-direct-browser-access");
 
+		// SECURITY: Remove client IP headers to prevent leaking client identity to upstream
+		newHeaders.delete("x-forwarded-for");
+		newHeaders.delete("x-real-ip");
+		newHeaders.delete("x-client-ip");
+		newHeaders.delete("x-forwarded-host");
+		newHeaders.delete("forwarded");
+
 		return newHeaders;
 	}
 

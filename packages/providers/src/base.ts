@@ -56,6 +56,14 @@ export abstract class BaseProvider implements Provider {
 		// Note: API key handling is provider-specific and should be
 		// implemented in the provider subclass
 		newHeaders.delete("host");
+
+		// SECURITY: Remove client IP headers to prevent leaking client identity to upstream
+		newHeaders.delete("x-forwarded-for");
+		newHeaders.delete("x-real-ip");
+		newHeaders.delete("x-client-ip");
+		newHeaders.delete("x-forwarded-host");
+		newHeaders.delete("forwarded");
+
 		return newHeaders;
 	}
 

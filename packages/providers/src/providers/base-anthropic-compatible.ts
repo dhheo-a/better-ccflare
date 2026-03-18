@@ -155,6 +155,13 @@ export abstract class BaseAnthropicCompatibleProvider extends BaseProvider {
 		newHeaders.delete("accept-encoding");
 		newHeaders.delete("content-encoding");
 
+		// SECURITY: Remove client IP headers to prevent leaking client identity to upstream
+		newHeaders.delete("x-forwarded-for");
+		newHeaders.delete("x-real-ip");
+		newHeaders.delete("x-client-ip");
+		newHeaders.delete("x-forwarded-host");
+		newHeaders.delete("forwarded");
+
 		return newHeaders;
 	}
 

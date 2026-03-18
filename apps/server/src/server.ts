@@ -540,7 +540,13 @@ export default async function startServer(options?: {
 			async fetch(req: Request, server: import("bun").Server<undefined>) {
 				const url = new URL(req.url);
 				const clientAddr = server.requestIP(req);
-				const clientIp = clientAddr?.address || null;
+				const forwardedFor = req.headers.get("x-forwarded-for");
+				const realIp = req.headers.get("x-real-ip");
+				const clientIp =
+					(forwardedFor ? forwardedFor.split(",")[0].trim() : null) ||
+					realIp ||
+					clientAddr?.address ||
+					null;
 
 				// Try API routes first
 				const apiResponse = await apiRouter.handleRequest(url, req);
